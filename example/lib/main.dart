@@ -3,6 +3,7 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
@@ -35,6 +36,7 @@ class _FlutterBlueAppState extends State<FlutterBlueApp> {
 
   /// Device
   BluetoothDevice device;
+
   bool get isConnected => (device != null);
   StreamSubscription deviceConnection;
   StreamSubscription deviceStateSubscription;
@@ -105,7 +107,8 @@ class _FlutterBlueAppState extends State<FlutterBlueApp> {
     device = d;
     // Connect to device
     deviceConnection = _flutterBlue
-        .connect(device, timeout: const Duration(seconds: 4))
+        .connect(device, Platform.isAndroid,
+            timeout: const Duration(seconds: 10))
         .listen(
           null,
           onDone: _disconnect,
@@ -152,7 +155,7 @@ class _FlutterBlueAppState extends State<FlutterBlueApp> {
   }
 
   _writeCharacteristic(BluetoothCharacteristic c) async {
-    await device.writeCharacteristic(c, [0x12, 0x34],
+    await device.writeCharacteristic(c, [0x12, 0x34], Platform.isAndroid,
         type: CharacteristicWriteType.withResponse);
     setState(() {});
   }
@@ -213,6 +216,7 @@ class _FlutterBlueAppState extends State<FlutterBlueApp> {
 
   _buildScanResultTiles() {
     return scanResults.values
+        .where((item) => item.device.name.length > 0)
         .map((r) => ScanResultTile(
               result: r,
               onTap: () => _connect(r.device),

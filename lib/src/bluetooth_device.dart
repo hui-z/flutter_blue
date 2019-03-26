@@ -99,40 +99,48 @@ class BluetoothDevice {
   /// [CharacteristicWriteType.withResponse]: the method will return after the
   /// write operation has either passed or failed.
   Future<Null> writeCharacteristic(
-      BluetoothCharacteristic characteristic, List<int> value,
+      BluetoothCharacteristic characteristic, List<int> value, bool isAndroid,
       {CharacteristicWriteType type =
           CharacteristicWriteType.withoutResponse}) async {
-    var request = protos.WriteCharacteristicRequest.create()
-      ..remoteId = id.toString()
-      ..characteristicUuid = characteristic.uuid.toString()
-      ..serviceUuid = characteristic.serviceUuid.toString()
-      ..writeType =
-          protos.WriteCharacteristicRequest_WriteType.valueOf(type.index)
-      ..value = value;
+    if (isAndroid) {
+      var result = await FlutterBlue.instance._channel
+          .invokeMethod('writeCharacteristic', value);
+      if (type == CharacteristicWriteType.withoutResponse) {
+        return result;
+      }
+    } else {
+      var request = protos.WriteCharacteristicRequest.create()
+        ..remoteId = id.toString()
+        ..characteristicUuid = characteristic.uuid.toString()
+        ..serviceUuid = characteristic.serviceUuid.toString()
+        ..writeType =
+            protos.WriteCharacteristicRequest_WriteType.valueOf(type.index)
+        ..value = value;
 
-    var result = await FlutterBlue.instance._channel
-        .invokeMethod('writeCharacteristic', request.writeToBuffer());
+      var result = await FlutterBlue.instance._channel
+          .invokeMethod('writeCharacteristic', request.writeToBuffer());
 
-    if (type == CharacteristicWriteType.withoutResponse) {
-      return result;
+      if (type == CharacteristicWriteType.withoutResponse) {
+        return result;
+      }
+
+      return await FlutterBlue.instance._methodStream
+          .where((m) => m.method == "WriteCharacteristicResponse")
+          .map((m) => m.arguments)
+          .map((buffer) =>
+              new protos.WriteCharacteristicResponse.fromBuffer(buffer))
+          .where((p) =>
+              (p.request.remoteId == request.remoteId) &&
+              (p.request.characteristicUuid == request.characteristicUuid) &&
+              (p.request.serviceUuid == request.serviceUuid))
+          .first
+          .then((w) => w.success)
+          .then((success) => (!success)
+              ? throw new Exception('Failed to write the characteristic')
+              : null)
+          .then((_) => characteristic.value = value)
+          .then((_) => null);
     }
-
-    return await FlutterBlue.instance._methodStream
-        .where((m) => m.method == "WriteCharacteristicResponse")
-        .map((m) => m.arguments)
-        .map((buffer) =>
-            new protos.WriteCharacteristicResponse.fromBuffer(buffer))
-        .where((p) =>
-            (p.request.remoteId == request.remoteId) &&
-            (p.request.characteristicUuid == request.characteristicUuid) &&
-            (p.request.serviceUuid == request.serviceUuid))
-        .first
-        .then((w) => w.success)
-        .then((success) => (!success)
-            ? throw new Exception('Failed to write the characteristic')
-            : null)
-        .then((_) => characteristic.value = value)
-        .then((_) => null);
   }
 
   /// Writes the value of a descriptor

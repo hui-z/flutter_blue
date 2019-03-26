@@ -29,11 +29,14 @@ class FlutterBlue {
     // Send the log level to the underlying platforms.
     setLogLevel(logLevel);
   }
+
   static FlutterBlue _instance = new FlutterBlue._();
+
   static FlutterBlue get instance => _instance;
 
   /// Log level of the instance, default is all messages (debug).
   LogLevel _logLevel = LogLevel.debug;
+
   LogLevel get logLevel => _logLevel;
 
   /// Checks whether the device supports Bluetooth
@@ -105,7 +108,8 @@ class FlutterBlue {
   /// Timeout closes the stream after a specified [Duration]
   /// To cancel connection to device, simply cancel() the stream subscription
   Stream<BluetoothDeviceState> connect(
-    BluetoothDevice device, {
+    BluetoothDevice device,
+    bool isAndroid, {
     Duration timeout,
     bool autoConnect = true,
   }) async* {
@@ -123,12 +127,15 @@ class FlutterBlue {
         }
       },
       onCancel: () {
-        _cancelConnection(device);
-        subscription.cancel();
+        if (!isAndroid) {
+          cancelConnection(device);
+          subscription.cancel();
+        }
       },
     );
 
-    await _channel.invokeMethod('connect', request.writeToBuffer());
+    await _channel.invokeMethod(
+        'connect', isAndroid ? device.id.id : request.writeToBuffer());
 
     subscription = device.onStateChanged().listen(
       (data) {
@@ -146,7 +153,7 @@ class FlutterBlue {
   }
 
   /// Cancels connection to the Bluetooth Device
-  Future _cancelConnection(BluetoothDevice device) =>
+  Future cancelConnection(BluetoothDevice device) =>
       _channel.invokeMethod('disconnect', device.id.toString());
 
   /// Sets the log level of the FlutterBlue instance
@@ -189,6 +196,7 @@ enum BluetoothState {
 
 class ScanMode {
   const ScanMode(this.value);
+
   static const lowPower = const ScanMode(0);
   static const balanced = const ScanMode(1);
   static const lowLatency = const ScanMode(2);
@@ -198,6 +206,7 @@ class ScanMode {
 
 class DeviceIdentifier {
   final String id;
+
   const DeviceIdentifier(this.id);
 
   @override
